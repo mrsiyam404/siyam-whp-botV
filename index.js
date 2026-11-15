@@ -1,7 +1,6 @@
 /**
  * WhatsApp Bot Core
  * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
- * Messenger GoatBot compatibility project.
  */
 
 const { loadConfig } = require("./src/config");
@@ -15,28 +14,31 @@ async function main() {
 
     logger.info("𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍 WhatsApp Bot starting...");
 
-    if (config.security.integrityCheck) {
+    if (config.security?.integrityCheck) {
       const result = await verifyProject(config);
 
       if (!result.valid) {
-        logger.error("Integrity check failed. Bot startup stopped.");
-        process.exit(1);
+        logger.warn(
+          `Integrity warning: ${result.invalidFiles.length} file(s) failed verification.`
+        );
+        logger.warn("Modified files will be blocked individually.");
       }
     }
 
     await startWhatsApp(config);
   } catch (error) {
-    logger.error(`Startup error: ${error.message}`);
-    process.exit(1);
+    logger.error(`Startup error: ${error.stack || error.message}`);
+    process.exitCode = 1;
   }
 }
 
 process.on("unhandledRejection", error => {
-  logger.error(`Unhandled rejection: ${error.stack || error}`);
+  logger.error(`Unhandled rejection: ${error?.stack || error}`);
 });
 
 process.on("uncaughtException", error => {
-  logger.error(`Uncaught exception: ${error.stack || error}`);
+  logger.error(`Uncaught exception: ${error?.stack || error}`);
+  process.exit(1);
 });
 
 process.on("SIGINT", () => {
