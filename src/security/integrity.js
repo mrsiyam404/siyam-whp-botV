@@ -1,3 +1,4 @@
+
 /**
  * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
  * Command/Event author integrity verification.
@@ -12,7 +13,9 @@ function getSourceDirectories(config) {
 
   return [
     path.resolve(root, config.commands?.directory || "./src/commands"),
-    path.resolve(root, config.events?.directory || "./src/events")
+    path.resolve(root, config.events?.directory || "./src/events"),
+    path.resolve(root, "scripts/cmds"),
+    path.resolve(root, "scripts/events")
   ];
 }
 
@@ -21,9 +24,7 @@ function getJavaScriptFiles(directory) {
 
   const result = [];
 
-  for (const entry of fs.readdirSync(directory, {
-    withFileTypes: true
-  })) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const fullPath = path.join(directory, entry.name);
 
     if (entry.isDirectory()) {
@@ -43,9 +44,7 @@ function verifySingleFile(filePath, config) {
     const marker = config.security?.authorMarker;
     if (!marker) return false;
 
-    const content = fs.readFileSync(filePath, "utf8");
-
-    return content.includes(marker);
+    return fs.readFileSync(filePath, "utf8").includes(marker);
   } catch (error) {
     logger.error(`Integrity read error: ${error.message}`);
     return false;
@@ -53,14 +52,12 @@ function verifySingleFile(filePath, config) {
 }
 
 async function verifyProject(config) {
-  const directories = getSourceDirectories(config);
+  const directories = [...new Set(getSourceDirectories(config))];
   const invalidFiles = [];
   let checkedFiles = 0;
 
   for (const directory of directories) {
-    const files = getJavaScriptFiles(directory);
-
-    for (const filePath of files) {
+    for (const filePath of getJavaScriptFiles(directory)) {
       checkedFiles++;
 
       if (!verifySingleFile(filePath, config)) {
@@ -70,18 +67,13 @@ async function verifyProject(config) {
         );
 
         invalidFiles.push(relativePath);
-
-        logger.error(
-          `AUTHOR WARNING: ${relativePath} failed integrity verification.`
-        );
+        logger.error(`AUTHOR WARNING: ${relativePath} failed integrity verification.`);
       }
     }
   }
 
   if (invalidFiles.length === 0) {
-    logger.success(
-      `Integrity check passed. Checked ${checkedFiles} file(s).`
-    );
+    logger.success(`Integrity check passed. Checked ${checkedFiles} file(s).`);
   }
 
   return {
@@ -92,7 +84,4 @@ async function verifyProject(config) {
   };
 }
 
-module.exports = {
-  verifyProject,
-  verifySingleFile
-};
+module.exports = { verifyProject, verifySingleFile };
