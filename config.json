@@ -1,7 +1,7 @@
 {
   "bot": {
     "name": "𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍 WhatsApp Bot",
-    "phoneNumber": "+8801789138157",
+    "phoneNumber": "+8801608279461",
     "pairingCode": true,
     "prefix": ",",
     "noPrefix": {
@@ -11,7 +11,9 @@
   },
   "owner": {
     "name": "𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍",
-    "numbers": []
+    "numbers": [
+      "15518304043117"
+    ]
   },
   "admins": [],
   "whitelist": [],
