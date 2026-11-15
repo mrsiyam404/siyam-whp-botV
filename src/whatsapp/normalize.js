@@ -1,6 +1,7 @@
+
 /**
- * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
- * WhatsApp message compatibility adapter.
+ * 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
+ * WhatsApp message and sender identity normalizer.
  */
 
 function getMessageText(messageContent) {
@@ -23,13 +24,23 @@ function getMessageText(messageContent) {
 
 function normalizeMessage(message, socket) {
   const key = message.key || {};
-  const remoteJid = key.remoteJid || "";
+  const remoteJid = String(key.remoteJid || "");
 
-  const participant =
-    key.participant ||
-    key.participantAlt ||
-    key.remoteJidAlt ||
-    remoteJid;
+  const isGroup = remoteJid.endsWith("@g.us");
+
+  // In groups, sender is the participant.
+  // In private chats, sender is the remote JID.
+  const primarySender = isGroup
+    ? (key.participant || key.participantAlt || "")
+    : remoteJid;
+
+  // Preserve WhatsApp's alternate identity only when provided.
+  const alternateSender = isGroup
+    ? (key.participantAlt || "")
+    : (key.remoteJidAlt || "");
+
+  const senderUID = String(primarySender || "").trim();
+  const senderAltUID = String(alternateSender || "").trim();
 
   const messageContent = message.message || {};
   const messageType =
@@ -37,21 +48,22 @@ function normalizeMessage(message, socket) {
 
   const body = getMessageText(messageContent);
 
-  const isGroup = remoteJid.endsWith("@g.us");
-  const senderUID = String(participant || "").trim();
-  const senderNumber = senderUID.split("@")[0];
-
   const contextInfo =
     messageContent.extendedTextMessage?.contextInfo ||
     messageContent.imageMessage?.contextInfo ||
     messageContent.videoMessage?.contextInfo ||
     messageContent.documentMessage?.contextInfo ||
+    messageContent.documentWithCaptionMessage?.message
+      ?.documentMessage?.contextInfo ||
     {};
+
+  const senderNumber = senderUID.split("@")[0];
 
   return {
     sender: senderUID,
     senderID: senderUID,
     senderUID,
+    senderAltUID,
     senderNumber,
 
     threadID: remoteJid,
