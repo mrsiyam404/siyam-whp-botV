@@ -4,87 +4,97 @@
  */
 
 const { normalizeMessage } = require("../whatsapp/normalize");
+const { isOwner, isAdmin } = require("../permissions/access");
 const logger = require("../logger");
 
 function createMessageHandler(socket, config, commands) {
   return async function handleMessage(update) {
-    const messages = update.messages || [];
+    if (!update || !Array.isArray(update.messages)) return;
 
-    for (const message of messages) {
-      if (!message.message || message.key?.fromMe) continue;
-
-      const data = normalizeMessage(message, socket);
-
-      if (data.isGroup && !config.groups.enabled) continue;
-      if (data.isInbox && !config.inbox.enabled) continue;
-
-      const sender = data.sender;
-      const owners = config.owner.numbers.map(String);
-      const admins = config.admins.map(String);
-
-      const isOwner = owners.includes(sender);
-      const isAdmin = isOwner || admins.includes(sender);
-
-      data.isAdmin = isAdmin;
-      data.isOwner = isOwner;
-
-      const body = data.body.trim();
-      if (!body) continue;
-
-      const prefix = config.bot.prefix;
-      const hasPrefix = body.startsWith(prefix);
-
-      if (!hasPrefix && !config.bot.noPrefix.enabled) continue;
-      if (!hasPrefix && config.bot.noPrefix.adminOnly && !isAdmin) continue;
-
-      const input = hasPrefix
-        ? body.slice(prefix.length).trim()
-        : body;
-
-      const args = input.split(/\s+/);
-      const commandName = (args.shift() || "").toLowerCase();
-
-      if (!commandName) continue;
-
-      const command = commands.get(commandName);
-      if (!command) continue;
+    for (const message of update.messages) {
+      if (!message?.message || message.key?.fromMe) continue;
 
       try {
+        const data = normalizeMessage(message, socket);
+
+        if (data.isGroup && !config.groups?.enabled) continue;
+        if (data.isInbox && !config.inbox?.enabled) continue;
+
+        const sender = String(data.sender || "");
+
+        const owner = isOwner(sender, config);
+        const admin = isAdmin(sender, config);
+
+        data.isOwner = owner;
+        data.isAdmin = admin;
+
+        const body = String(data.body || "").trim();
+        if (!body) continue;
+
+        const prefix = String(config.bot?.prefix || ",");
+        const hasPrefix = body.startsWith(prefix);
+
+        if (!hasPrefix && !config.bot?.noPrefix?.enabled) continue;
+
         if (
-          command.config.role === 2 &&
-          !isOwner
+          !hasPrefix &&
+          config.bot?.noPrefix?.adminOnly &&
+          !admin
         ) {
+          continue;
+        }
+
+        const input = hasPrefix
+          ? body.slice(prefix.length).trim()
+          : body;
+
+        if (!input) continue;
+
+        const parts = input.match(/"[^"]+"|'[^']+'|\S+/g) || [];
+        const commandName = (parts.shift() || "").replace(/^["']|["']$/g, "");
+
+        const commandKey = config.commands?.caseSensitive
+          ? commandName
+          : commandName.toLowerCase();
+
+        if (!commandKey) continue;
+
+        const command = commands.get(commandKey);
+        if (!command) continue;
+
+        const role = Number(command.config.role || 0);
+
+        if (role === 2 && !owner) {
           await socket.sendMessage(data.threadID, {
             text: "Only the bot owner can use this command."
           });
           continue;
         }
 
-        if (
-          command.config.role === 1 &&
-          !isAdmin
-        ) {
+        if (role === 1 && !admin) {
           await socket.sendMessage(data.threadID, {
             text: "Admin permission required."
           });
           continue;
         }
 
+        const args = parts.map(value =>
+          value.replace(/^["']|["']$/g, "")
+        );
+
         await command.run({
           api: socket,
           event: data,
           args,
           config,
-          isAdmin,
-          isOwner,
+          isAdmin: admin,
+          isOwner: owner,
           message: data
         });
       } catch (error) {
-        logger.error(`Command ${commandName}: ${error.stack || error}`);
-
-        await socket.sendMessage(data.threadID, {
-          text: "Command execution failed."
-        }).catch(() => {});
+        logger.error(
+          `Message handler error: ${error.stack || error.message}`
+        );
       }
     }
   };
