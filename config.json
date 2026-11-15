@@ -1,0 +1,43 @@
+{
+  "bot": {
+    "name": "𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍 WhatsApp Bot",
+    "phoneNumber": "+8801789138157",
+    "pairingCode": true,
+    "prefix": ",",
+    "noPrefix": {
+      "enabled": false,
+      "adminOnly": true
+    }
+  },
+  "owner": {
+    "name": "𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍",
+    "numbers": []
+  },
+  "admins": [],
+  "whitelist": [],
+  "groups": {
+    "enabled": true
+  },
+  "inbox": {
+    "enabled": true
+  },
+  "commands": {
+    "directory": "./src/commands",
+    "caseSensitive": false
+  },
+  "events": {
+    "directory": "./src/events"
+  },
+  "security": {
+    "integrityCheck": true,
+    "authorMarker": "𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍",
+    "blockModifiedFiles": true
+  },
+  "session": {
+    "directory": "./session"
+  },
+  "logging": {
+    "level": "info"
+  },
+  "timezone": "Asia/Dhaka"
+}
