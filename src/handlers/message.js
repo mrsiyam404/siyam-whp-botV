@@ -1,14 +1,17 @@
+
 /**
- * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
+ * 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
  * WhatsApp message and command handler.
  */
 
 const { normalizeMessage } = require("../whatsapp/normalize");
+
 const {
   isOwner,
   isAdmin,
   isWhitelisted
 } = require("../permissions/access");
+
 const logger = require("../logger");
 
 function createMessageHandler(socket, config, commands) {
@@ -25,10 +28,17 @@ function createMessageHandler(socket, config, commands) {
         if (data.isInbox && !config.inbox?.enabled) continue;
 
         const sender = data.senderUID;
+        const alternateIDs = data.senderAltUID
+          ? [data.senderAltUID]
+          : [];
 
-        const owner = isOwner(sender, config);
-        const admin = isAdmin(sender, config);
-        const whitelisted = isWhitelisted(sender, config);
+        const owner = isOwner(sender, config, alternateIDs);
+        const admin = isAdmin(sender, config, alternateIDs);
+        const whitelisted = isWhitelisted(
+          sender,
+          config,
+          alternateIDs
+        );
 
         data.isOwner = owner;
         data.isAdmin = admin;
@@ -77,21 +87,21 @@ function createMessageHandler(socket, config, commands) {
 
         if (role === 2 && !owner) {
           await socket.sendMessage(data.threadID, {
-            text: "শুধুমাত্র Bot Owner এই কমান্ড ব্যবহার করতে পারবেন।"
+            text: "⛔ শুধুমাত্র Bot Owner এই কমান্ড ব্যবহার করতে পারবেন।"
           });
           continue;
         }
 
         if (role === 1 && !admin) {
           await socket.sendMessage(data.threadID, {
-            text: "এই কমান্ড ব্যবহার করতে Admin permission প্রয়োজন।"
+            text: "⚠️ এই কমান্ড ব্যবহার করতে Admin permission প্রয়োজন।"
           });
           continue;
         }
 
         if (role === 3 && !whitelisted && !owner) {
           await socket.sendMessage(data.threadID, {
-            text: "এই কমান্ড ব্যবহারের জন্য Whitelist permission প্রয়োজন।"
+            text: "⚠️ এই কমান্ড ব্যবহারের জন্য Whitelist permission প্রয়োজন।"
           });
           continue;
         }
@@ -112,9 +122,8 @@ function createMessageHandler(socket, config, commands) {
         });
 
       } catch (error) {
-        logger.error(
-          `Message handler error: ${error.stack || error.message}`
-        );
+        logger.error("❌ Message Handler Error / মেসেজ প্রসেস করতে সমস্যা:");
+        logger.error(error.stack || error.message);
       }
     }
   };
