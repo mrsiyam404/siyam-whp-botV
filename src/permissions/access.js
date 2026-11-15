@@ -12,18 +12,24 @@ function normalizeUID(value) {
 
 function getUIDVariants(value) {
   const uid = normalizeUID(value);
+
   if (!uid) return [];
 
   const variants = [uid];
 
-  // Full WhatsApp JID যেমন 8801XXXXXXXXX@s.whatsapp.net
-  if (uid.endsWith("@s.whatsapp.net")) {
-    variants.push(uid.split("@")[0]);
+  if (uid.includes("@")) {
+    const number = uid.split("@")[0];
+
+    if (/^\d+$/.test(number)) {
+      variants.push(number);
+      variants.push(`${number}@s.whatsapp.net`);
+      variants.push(`${number}@lid`);
+    }
   }
 
-  // পুরোনো নম্বর ফরম্যাটের সঙ্গে মিল রাখার জন্য
   if (/^\d+$/.test(uid)) {
     variants.push(`${uid}@s.whatsapp.net`);
+    variants.push(`${uid}@lid`);
   }
 
   return [...new Set(variants)];
@@ -34,7 +40,7 @@ function matchesUID(sender, allowedList) {
 
   const senderVariants = getUIDVariants(sender);
 
-  if (senderVariants.length === 0) return false;
+  if (!senderVariants.length) return false;
 
   return allowedList.some(item => {
     const allowedVariants = getUIDVariants(item);
@@ -46,13 +52,17 @@ function matchesUID(sender, allowedList) {
 }
 
 function isOwner(sender, config) {
-  return matchesUID(sender, config.owner?.numbers) ||
-    matchesUID(sender, config.owner?.uids);
+  return (
+    matchesUID(sender, config.owner?.numbers) ||
+    matchesUID(sender, config.owner?.uids)
+  );
 }
 
 function isAdmin(sender, config) {
-  return isOwner(sender, config) ||
-    matchesUID(sender, config.admins);
+  return (
+    isOwner(sender, config) ||
+    matchesUID(sender, config.admins)
+  );
 }
 
 function isWhitelisted(sender, config) {
