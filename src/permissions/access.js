@@ -1,28 +1,73 @@
 /**
  * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
+ * WhatsApp UID-based permission system.
  */
 
-function normalize(number) {
-  return String(number || "").replace(/\D/g, "");
+function normalizeUID(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+}
+
+function getUIDVariants(value) {
+  const uid = normalizeUID(value);
+  if (!uid) return [];
+
+  const variants = [uid];
+
+  // Full WhatsApp JID যেমন 8801XXXXXXXXX@s.whatsapp.net
+  if (uid.endsWith("@s.whatsapp.net")) {
+    variants.push(uid.split("@")[0]);
+  }
+
+  // পুরোনো নম্বর ফরম্যাটের সঙ্গে মিল রাখার জন্য
+  if (/^\d+$/.test(uid)) {
+    variants.push(`${uid}@s.whatsapp.net`);
+  }
+
+  return [...new Set(variants)];
+}
+
+function matchesUID(sender, allowedList) {
+  if (!Array.isArray(allowedList)) return false;
+
+  const senderVariants = getUIDVariants(sender);
+
+  if (senderVariants.length === 0) return false;
+
+  return allowedList.some(item => {
+    const allowedVariants = getUIDVariants(item);
+
+    return allowedVariants.some(uid =>
+      senderVariants.includes(uid)
+    );
+  });
 }
 
 function isOwner(sender, config) {
-  return config.owner.numbers.some(
-    number => normalize(number) === normalize(sender)
-  );
+  return matchesUID(sender, config.owner?.numbers) ||
+    matchesUID(sender, config.owner?.uids);
 }
 
 function isAdmin(sender, config) {
   return isOwner(sender, config) ||
-    config.admins.some(
-      number => normalize(number) === normalize(sender)
-    );
+    matchesUID(sender, config.admins);
 }
 
 function isWhitelisted(sender, config) {
-  return config.whitelist.some(
-    number => normalize(number) === normalize(sender)
-  );
+  return matchesUID(sender, config.whitelist);
 }
 
-module.exports = { isOwner, isAdmin, isWhitelisted, normalize };
+function normalize(sender) {
+  return normalizeUID(sender);
+}
+
+module.exports = {
+  isOwner,
+  isAdmin,
+  isWhitelisted,
+  normalize,
+  normalizeUID,
+  getUIDVariants
+};
