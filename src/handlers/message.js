@@ -1,7 +1,8 @@
 
 /**
- * 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
+ * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
  * WhatsApp message and command handler.
+ * Admin Only Support
  */
 
 const { normalizeMessage } = require("../whatsapp/normalize");
@@ -57,7 +58,8 @@ function createMessageHandler(socket, config, commands) {
         if (
           !hasPrefix &&
           config.bot?.noPrefix?.adminOnly &&
-          !admin
+          !admin &&
+          !owner
         ) {
           continue;
         }
@@ -83,6 +85,21 @@ function createMessageHandler(socket, config, commands) {
         const command = commands.get(commandKey);
         if (!command) continue;
 
+        // Admin Only mode
+        // Owner and Admin can use commands when enabled.
+        if (
+          config.adminOnly?.enable === true &&
+          !owner &&
+          !admin
+        ) {
+          await socket.sendMessage(data.threadID, {
+            text:
+              "🔒 Admin Only Mode চালু আছে।\n" +
+              "⚠️ শুধুমাত্র Admin এবং Owner কমান্ড ব্যবহার করতে পারবেন।"
+          });
+          continue;
+        }
+
         const role = Number(command.config.role || 0);
 
         if (role === 2 && !owner) {
@@ -92,7 +109,7 @@ function createMessageHandler(socket, config, commands) {
           continue;
         }
 
-        if (role === 1 && !admin) {
+        if (role === 1 && !admin && !owner) {
           await socket.sendMessage(data.threadID, {
             text: "⚠️ এই কমান্ড ব্যবহার করতে Admin permission প্রয়োজন।"
           });
@@ -122,7 +139,9 @@ function createMessageHandler(socket, config, commands) {
         });
 
       } catch (error) {
-        logger.error("❌ Message Handler Error / মেসেজ প্রসেস করতে সমস্যা:");
+        logger.error(
+          "❌ Message Handler Error / মেসেজ প্রসেস করতে সমস্যা:"
+        );
         logger.error(error.stack || error.message);
       }
     }
