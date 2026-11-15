@@ -1,6 +1,8 @@
+
 /**
  * Author: 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
- * Event loader.
+ * WhatsApp Event Loader
+ * Supports both src/events and scripts/events.
  */
 
 const fs = require("fs");
@@ -19,76 +21,100 @@ function loadEvents(socket, config, commands) {
   loadedSockets.add(socket);
 
   const root = path.resolve(__dirname, "../../");
-  const directory = path.resolve(
-    root,
-    config.events?.directory || "./src/events"
-  );
 
-  if (!fs.existsSync(directory)) {
-    logger.warn(`Event directory not found: ${directory}`);
-    return;
-  }
+  // Keep the existing event directory and add root scripts/events.
+  const directories = [
+    path.resolve(
+      root,
+      config.events?.directory || "./src/events"
+    ),
+    path.resolve(root, "scripts/events")
+  ];
 
-  const files = fs.readdirSync(directory, {
-    withFileTypes: true
-  });
+  const uniqueDirectories = [...new Set(directories)];
+  const loadedFiles = new Set();
 
-  for (const entry of files) {
-    if (
-      !entry.isFile() ||
-      !entry.name.endsWith(".js") ||
-      entry.name === "loader.js"
-    ) {
+  for (const directory of uniqueDirectories) {
+    if (!fs.existsSync(directory)) {
+      logger.warn(`Event directory not found: ${directory}`);
       continue;
     }
 
-    const filePath = path.join(directory, entry.name);
+    let entries;
 
-    if (
-      config.security?.integrityCheck &&
-      config.security?.blockModifiedFiles &&
-      !verifySingleFile(filePath, config)
-    ) {
+    try {
+      entries = fs.readdirSync(directory, {
+        withFileTypes: true
+      });
+    } catch (error) {
       logger.error(
-        `${entry.name}: author verification failed; event blocked.`
+        `Cannot read event directory (${directory}): ${error.message}`
       );
       continue;
     }
 
-    try {
-      delete require.cache[require.resolve(filePath)];
-
-      const event = require(filePath);
-
+    for (const entry of entries) {
       if (
-        !event ||
-        !event.config?.name ||
-        typeof event.run !== "function"
+        !entry.isFile() ||
+        !entry.name.endsWith(".js") ||
+        entry.name === "loader.js"
       ) {
-        logger.warn(`Invalid event format: ${entry.name}`);
         continue;
       }
 
-      socket.ev.on(event.config.name, (...args) => {
-        Promise.resolve(
-          event.run({
-            socket,
-            config,
-            commands,
-            args
-          })
-        ).catch(error => {
-          logger.error(
-            `Event error (${entry.name}): ${error.stack || error.message}`
-          );
-        });
-      });
+      const filePath = path.join(directory, entry.name);
 
-      logger.success(`Loaded event: ${event.config.name}`);
-    } catch (error) {
-      logger.error(
-        `Event load error (${entry.name}): ${error.message}`
-      );
+      if (loadedFiles.has(filePath)) continue;
+      loadedFiles.add(filePath);
+
+      if (
+        config.security?.integrityCheck &&
+        config.security?.blockModifiedFiles &&
+        !verifySingleFile(filePath, config)
+      ) {
+        logger.error(
+          `${entry.name}: author verification failed; event blocked.`
+        );
+        continue;
+      }
+
+      try {
+        delete require.cache[require.resolve(filePath)];
+
+        const event = require(filePath);
+
+        if (
+          !event ||
+          !event.config?.name ||
+          typeof event.run !== "function"
+        ) {
+          logger.warn(`Invalid event format: ${filePath}`);
+          continue;
+        }
+
+        socket.ev.on(event.config.name, (...args) => {
+          Promise.resolve(
+            event.run({
+              socket,
+              config,
+              commands,
+              args
+            })
+          ).catch(error => {
+            logger.error(
+              `Event error (${filePath}): ${error.stack || error.message}`
+            );
+          });
+        });
+
+        logger.success(
+          `Loaded event: ${event.config.name} [${path.relative(root, filePath)}]`
+        );
+      } catch (error) {
+        logger.error(
+          `Event load error (${filePath}): ${error.stack || error.message}`
+        );
+      }
     }
   }
 }
