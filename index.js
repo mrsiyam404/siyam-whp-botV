@@ -1,4 +1,3 @@
-
 /**
  * 𝐒𝐈𝐘𝐀𝐌 𝐇𝐀𝐒𝐀𝐍
  * Main WhatsApp Bot Launcher.
@@ -6,11 +5,21 @@
 
 const fs = require("fs");
 const path = require("path");
+const http = require("http"); // রেন্ডারের পোর্ট বাইন্ডিং ঠিক রাখার জন্য এটি যোগ করা হয়েছে
 
 const { loadConfig } = require("./src/config");
 const logger = require("./src/logger");
 const { startWhatsApp } = require("./src/whatsapp/client");
 const { verifyProject } = require("./src/security/integrity");
+
+// রেন্ডার বা যেকোনো হোস্টিংয়ের পোর্ট রিকোয়ারমেন্ট পূরণ করতে একটি সিম্পল সার্ভার চালু রাখা
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("SIYAM WHATSAPP BOT IS RUNNING!\n");
+}).listen(PORT, () => {
+  console.log(`HTTP Server is listening on port ${PORT}`);
+});
 
 function getPackageInfo() {
   try {
