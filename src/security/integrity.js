@@ -7,53 +7,89 @@ const fs = require("fs");
 const path = require("path");
 const logger = require("../logger");
 
-async function verifyProject(config) {
-  const marker = config.security.authorMarker;
-  const directories = [
-    path.resolve(__dirname, "../commands"),
-    path.resolve(__dirname, "../events")
-  ];
+function getSourceDirectories(config) {
+  const root = path.resolve(__dirname, "../../");
 
-  let valid = true;
+  return [
+    path.resolve(root, config.commands?.directory || "./src/commands"),
+    path.resolve(root, config.events?.directory || "./src/events")
+  ];
+}
+
+function getJavaScriptFiles(directory) {
+  if (!fs.existsSync(directory)) return [];
+
+  const result = [];
+
+  for (const entry of fs.readdirSync(directory, {
+    withFileTypes: true
+  })) {
+    const fullPath = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      result.push(...getJavaScriptFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith(".js")) {
+      result.push(fullPath);
+    }
+  }
+
+  return result;
+}
+
+function verifySingleFile(filePath, config) {
+  try {
+    if (!fs.existsSync(filePath)) return false;
+
+    const marker = config.security?.authorMarker;
+    if (!marker) return false;
+
+    const content = fs.readFileSync(filePath, "utf8");
+
+    return content.includes(marker);
+  } catch (error) {
+    logger.error(`Integrity read error: ${error.message}`);
+    return false;
+  }
+}
+
+async function verifyProject(config) {
+  const directories = getSourceDirectories(config);
+  const invalidFiles = [];
+  let checkedFiles = 0;
 
   for (const directory of directories) {
-    if (!fs.existsSync(directory)) continue;
+    const files = getJavaScriptFiles(directory);
 
-    const files = fs.readdirSync(directory, {
-      withFileTypes: true
-    });
+    for (const filePath of files) {
+      checkedFiles++;
 
-    for (const entry of files) {
-      if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
+      if (!verifySingleFile(filePath, config)) {
+        const relativePath = path.relative(
+          path.resolve(__dirname, "../../"),
+          filePath
+        );
 
-      const filePath = path.join(directory, entry.name);
-      const content = fs.readFileSync(filePath, "utf8");
-
-      if (!content.includes(marker)) {
-        valid = false;
+        invalidFiles.push(relativePath);
 
         logger.error(
-          `AUTHOR WARNING: ${entry.name} - Siam Hasan author marker changed.`
+          `AUTHOR WARNING: ${relativePath} failed integrity verification.`
         );
       }
     }
   }
 
-  if (valid) {
-    logger.success("Command/Event author integrity verified.");
+  if (invalidFiles.length === 0) {
+    logger.success(
+      `Integrity check passed. Checked ${checkedFiles} file(s).`
+    );
   }
 
   return {
-    valid,
-    author: marker
+    valid: invalidFiles.length === 0,
+    checkedFiles,
+    invalidFiles,
+    author: config.security?.authorMarker || ""
   };
-}
-
-function verifySingleFile(filePath, config) {
-  if (!fs.existsSync(filePath)) return false;
-
-  const content = fs.readFileSync(filePath, "utf8");
-  return content.includes(config.security.authorMarker);
 }
 
 module.exports = {
