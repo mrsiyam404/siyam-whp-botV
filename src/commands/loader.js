@@ -9,28 +9,35 @@ const logger = require("../logger");
 const { verifySingleFile } = require("../security/integrity");
 
 function loadCommands(config) {
-  const directory = path.resolve(__dirname);
+  const root = path.resolve(__dirname, "../../");
+  const directory = path.resolve(
+    root,
+    config.commands?.directory || "./src/commands"
+  );
 
   const commands = new Map();
 
   if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
+    logger.warn(`Command directory not found: ${directory}`);
+    return commands;
   }
 
-  const files = fs.readdirSync(directory);
+  const files = fs.readdirSync(directory, {
+    withFileTypes: true
+  });
 
-  for (const filename of files) {
-    if (!filename.endsWith(".js")) continue;
+  for (const entry of files) {
+    if (!entry.isFile() || !entry.name.endsWith(".js")) continue;
 
-    const filePath = path.join(directory, filename);
+    const filePath = path.join(directory, entry.name);
 
     if (
-      config.security.integrityCheck &&
-      config.security.blockModifiedFiles &&
+      config.security?.integrityCheck &&
+      config.security?.blockModifiedFiles &&
       !verifySingleFile(filePath, config)
     ) {
       logger.error(
-        `${filename} blocked: Siam Hasan author marker changed.`
+        `${entry.name} blocked: author marker verification failed.`
       );
       continue;
     }
@@ -40,27 +47,40 @@ function loadCommands(config) {
 
       const command = require(filePath);
 
-      if (!command.config || typeof command.run !== "function") {
-        logger.warn(`Invalid command format: ${filename}`);
+      if (
+        !command ||
+        !command.config ||
+        typeof command.run !== "function"
+      ) {
+        logger.warn(`Invalid command format: ${entry.name}`);
         continue;
       }
 
-      const name = command.config.name;
+      const name = String(command.config.name || "").trim();
 
       if (!name) {
-        logger.warn(`Command name missing: ${filename}`);
+        logger.warn(`Command name missing: ${entry.name}`);
         continue;
       }
 
-      commands.set(name.toLowerCase(), command);
+      const names = [
+        name,
+        ...(Array.isArray(command.config.aliases)
+          ? command.config.aliases
+          : [])
+      ];
 
-      for (const alias of command.config.aliases || []) {
-        commands.set(alias.toLowerCase(), command);
+      for (const commandName of names) {
+        const key = config.commands?.caseSensitive
+          ? String(commandName)
+          : String(commandName).toLowerCase();
+
+        if (key) commands.set(key, command);
       }
 
       logger.success(`Loaded command: ${name}`);
     } catch (error) {
-      logger.error(`${filename}: ${error.message}`);
+      logger.error(`Command load error (${entry.name}): ${error.message}`);
     }
   }
 
